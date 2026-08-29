@@ -1,0 +1,135 @@
+#pragma once
+
+#include <coroutine>
+#include <exception>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <type_traits>
+#include <utility>
+
+#ifndef __cpp_lib_generator
+#define __cpp_lib_generator 202207L
+#endif
+
+namespace std {
+
+template<class Ref, class Value = void, class Allocator = void>
+class generator {
+public:
+    using value_type = conditional_t<is_void_v<Value>, remove_cv_t<remove_reference_t<Ref>>, Value>;
+    using reference = conditional_t<is_reference_v<Ref>, Ref, Ref&&>;
+    using yielded = conditional_t<is_reference_v<Ref>, Ref, const value_type&>;
+
+    struct promise_type;
+    using handle_type = coroutine_handle<promise_type>;
+
+    class iterator {
+    public:
+        using iterator_category = input_iterator_tag;
+        using difference_type = ptrdiff_t;
+        using value_type = generator::value_type;
+
+        iterator() noexcept = default;
+        explicit iterator(handle_type handle) noexcept : handle_(handle) {}
+
+        iterator& operator++() {
+            handle_.resume();
+            return *this;
+        }
+
+        void operator++(int) {
+            handle_.resume();
+        }
+
+        yielded operator*() const noexcept {
+            return static_cast<yielded>(*handle_.promise().current_);
+        }
+
+        friend bool operator==(const iterator& value, default_sentinel_t) noexcept {
+            return !value.handle_ || value.handle_.done();
+        }
+
+    private:
+        handle_type handle_{};
+    };
+
+    struct promise_type {
+        using stored_type = remove_cv_t<remove_reference_t<Ref>>;
+
+        generator get_return_object() noexcept {
+            return generator(handle_type::from_promise(*this));
+        }
+
+        suspend_always initial_suspend() const noexcept {
+            return {};
+        }
+
+        suspend_always final_suspend() const noexcept {
+            return {};
+        }
+
+        void return_void() const noexcept {}
+
+        void unhandled_exception() const noexcept {
+            terminate();
+        }
+
+        suspend_always yield_value(stored_type& value) noexcept {
+            owned_.reset();
+            current_ = addressof(value);
+            return {};
+        }
+
+        suspend_always yield_value(stored_type&& value) noexcept(is_nothrow_move_constructible_v<stored_type>) {
+            owned_.emplace(move(value));
+            current_ = addressof(*owned_);
+            return {};
+        }
+
+        stored_type* current_ = nullptr;
+        optional<stored_type> owned_;
+    };
+
+    generator() noexcept = default;
+
+    generator(generator&& other) noexcept : handle_(exchange(other.handle_, {})) {}
+
+    generator& operator=(generator&& other) noexcept {
+        if (this != addressof(other)) {
+            if (handle_) {
+                handle_.destroy();
+            }
+            handle_ = exchange(other.handle_, {});
+        }
+        return *this;
+    }
+
+    generator(const generator&) = delete;
+    generator& operator=(const generator&) = delete;
+
+    ~generator() {
+        if (handle_) {
+            handle_.destroy();
+        }
+    }
+
+    iterator begin() {
+        if (handle_) {
+            handle_.resume();
+        }
+        return iterator(handle_);
+    }
+
+    default_sentinel_t end() const noexcept {
+        return {};
+    }
+
+private:
+    explicit generator(handle_type handle) noexcept : handle_(handle) {}
+
+    handle_type handle_{};
+};
+
+}
+
