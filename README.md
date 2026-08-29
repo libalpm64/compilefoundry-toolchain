@@ -8,7 +8,8 @@ Browser-hosted Clang, LLD, and WASI sysroots for CompileFoundry.
 - `clang.wasm`
 - `lld.js`
 - `lld.wasm`
-- `sysroot.tar`
+- `sysroot-base.tar`
+- `sysroot-threads.tar`
 - `manifest.json`
 - `SHA256SUMS`
 

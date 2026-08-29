@@ -5,7 +5,8 @@ import { WASI } from "node:wasi"
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const dist = join(root, "dist")
-const tar = readFileSync(join(dist, "sysroot.tar"))
+const baseTar = readFileSync(join(dist, "sysroot-base.tar"))
+const threadsTar = readFileSync(join(dist, "sysroot-threads.tar"))
 const Clang = (await import(pathToFileURL(join(dist, "clang.js")))).default
 const LLD = (await import(pathToFileURL(join(dist, "lld.js")))).default
 
@@ -28,12 +29,14 @@ function* entries(data) {
   }
 }
 
-function install(module) {
-  for (const { name, content } of entries(tar)) {
-    if (!name || name.endsWith("/")) continue
-    const parent = name.split("/").slice(0, -1).join("/")
-    module.FS.mkdirTree(`/${parent}`)
-    module.FS.writeFile(`/${name}`, content)
+function install(module, archives) {
+  for (const archive of archives) {
+    for (const { name, content } of entries(archive)) {
+      if (!name || name.endsWith("/")) continue
+      const parent = name.split("/").slice(0, -1).join("/")
+      module.FS.mkdirTree(`/${parent}`)
+      module.FS.writeFile(`/${name}`, content)
+    }
   }
 }
 
@@ -60,18 +63,18 @@ async function invocation(fileName, source, flags) {
   return { compiler: parse("-cc1"), linker: parse("wasm-ld") }
 }
 
-async function compile(fileName, source, flags) {
+async function compile(fileName, source, flags, archives) {
   let stderr = ""
   const [plan, clang, lld] = await Promise.all([
     invocation(fileName, source, flags),
     Clang({ thisProgram: "clang++", printErr: value => { stderr += `${value}\n` } }),
     LLD({ thisProgram: "wasm-ld", printErr: value => { stderr += `${value}\n` } })
   ])
-  install(clang)
+  install(clang, archives)
   clang.FS.writeFile(fileName, source)
   if (clang.callMain(plan.compiler.args) !== 0) throw new Error(stderr)
   const object = clang.FS.readFile(plan.compiler.output, { encoding: "binary" })
-  install(lld)
+  install(lld, archives)
   lld.FS.writeFile(plan.compiler.output, object)
   if (lld.callMain(plan.linker.args) !== 0) throw new Error(stderr)
   return WebAssembly.compile(lld.FS.readFile(plan.linker.output, { encoding: "binary" }))
@@ -89,16 +92,19 @@ const threadFlags = [
   "--target=wasm32-wasip1-threads",
   "-pthread",
   "-std=c++23",
+  "-fwasm-exceptions",
+  "-mllvm",
+  "-wasm-use-legacy-eh=false",
+  "-lunwind",
   "-Wl,--import-memory",
   "-Wl,--initial-memory=2097152",
   "-Wl,--max-memory=268435456"
 ]
 
-const base = await compile("base.cpp", readFileSync(join(root, "tests", "base.cpp"), "utf8"), exceptionFlags)
+const base = await compile("base.cpp", readFileSync(join(root, "tests", "base.cpp"), "utf8"), exceptionFlags, [baseTar])
 const wasi = new WASI({ version: "preview1", args: [], env: {}, returnOnExit: true })
 const instance = await WebAssembly.instantiate(base, { wasi_snapshot_preview1: wasi.wasiImport })
 const exitCode = wasi.start(instance)
 if (exitCode !== 0) throw new Error(`base smoke test exited ${exitCode}`)
-await compile("threads.cpp", readFileSync(join(root, "tests", "threads.cpp"), "utf8"), threadFlags)
+await compile("threads.cpp", readFileSync(join(root, "tests", "threads.cpp"), "utf8"), threadFlags, [baseTar, threadsTar])
 process.stdout.write("toolchain smoke tests passed\n")
-

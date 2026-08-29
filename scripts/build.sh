@@ -3,6 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/.build"
 DIST="$ROOT/dist"
+THREADS_SYSROOT="$BUILD/sysroot-threads"
 LLVM_COMMIT="278c31bfb8ceb7ea17dbfd11a4fb21e6634af957"
 WASI_TAG="wasi-sdk-34-rc.2"
 WASI_VERSION="34.0-rc.2+m"
@@ -53,6 +54,7 @@ echo "$BUILTINS_SHA256  $BUILD/libclang-rt.tar.gz" | sha256sum --check
 
 cmake -E remove_directory "$BUILD/sysroot"
 cmake -E remove_directory "$BUILD/builtins"
+cmake -E remove_directory "$THREADS_SYSROOT"
 cmake -E make_directory "$BUILD/sysroot" "$BUILD/builtins"
 tar -xzf "$BUILD/wasi-sysroot.tar.gz" -C "$BUILD/sysroot" --strip-components 1
 tar -xzf "$BUILD/libclang-rt.tar.gz" -C "$BUILD/builtins" --strip-components 1
@@ -62,6 +64,7 @@ cmake -E remove_directory "$BUILD/sysroot/include/wasm32-wasip3"
 cmake -E remove_directory "$BUILD/sysroot/lib/wasm32-wasip2"
 cmake -E remove_directory "$BUILD/sysroot/lib/wasm32-wasip3"
 find "$BUILD/sysroot/lib" -type d -name llvm-lto -prune -exec rm -rf '{}' '+'
+find "$BUILD/sysroot/lib/wasm32-wasip1" "$BUILD/sysroot/lib/wasm32-wasip1-threads" -type d -name noeh -prune -exec rm -rf '{}' '+'
 find "$BUILD/sysroot/lib" -type f -name '*.so' -delete
 
 cmake -E make_directory "$BUILD/sysroot/lib/clang/23/include"
@@ -76,9 +79,18 @@ cmake -E make_directory "$BUILD/sysroot/include/c++/v1/bits"
 cp "$ROOT/compat/include/generator" "$BUILD/sysroot/include/c++/v1/generator"
 cp "$ROOT/compat/include/bits/stdc++.h" "$BUILD/sysroot/include/c++/v1/bits/stdc++.h"
 
-(cd "$BUILD/sysroot" && tar --format=ustar -cf "$DIST/sysroot.tar" *)
+cmake -E make_directory "$THREADS_SYSROOT/include" "$THREADS_SYSROOT/lib" "$THREADS_SYSROOT/lib/clang/23/lib"
+cmake -E copy_directory "$BUILD/sysroot/include/wasm32-wasip1-threads" "$THREADS_SYSROOT/include/wasm32-wasip1-threads"
+cmake -E copy_directory "$BUILD/sysroot/lib/wasm32-wasip1-threads" "$THREADS_SYSROOT/lib/wasm32-wasip1-threads"
+cmake -E copy_directory "$BUILD/sysroot/lib/clang/23/lib/wasm32-unknown-wasip1-threads" "$THREADS_SYSROOT/lib/clang/23/lib/wasm32-unknown-wasip1-threads"
+
+cmake -E remove_directory "$BUILD/sysroot/include/wasm32-wasip1-threads"
+cmake -E remove_directory "$BUILD/sysroot/lib/wasm32-wasip1-threads"
+cmake -E remove_directory "$BUILD/sysroot/lib/clang/23/lib/wasm32-unknown-wasip1-threads"
+
+(cd "$BUILD/sysroot" && tar --format=ustar -cf "$DIST/sysroot-base.tar" *)
+(cd "$THREADS_SYSROOT" && tar --format=ustar -cf "$DIST/sysroot-threads.tar" *)
 
 cd "$DIST"
-sha256sum clang.js clang.wasm lld.js lld.wasm sysroot.tar > SHA256SUMS
+sha256sum clang.js clang.wasm lld.js lld.wasm sysroot-base.tar sysroot-threads.tar > SHA256SUMS
 node "$ROOT/scripts/manifest.mjs" > manifest.json
-
