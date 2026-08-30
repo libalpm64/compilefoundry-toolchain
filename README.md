@@ -5,11 +5,11 @@ Browser-hosted Clang, LLD, and WASI sysroots for CompileFoundry.
 ## Outputs
 
 - `clang.js`
-- `clang.wasm`
+- `clang.wasm.gz`
 - `lld.js`
-- `lld.wasm`
-- `sysroot-base.tar`
-- `sysroot-threads.tar`
+- `lld.wasm.gz`
+- `sysroot-base.tar.gz`
+- `sysroot-threads.tar.gz`
 - `manifest.json`
 - `SHA256SUMS`
 

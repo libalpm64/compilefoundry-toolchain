@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: toolchain-build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -22,6 +26,7 @@ jobs:
       - run: ./emsdk/emsdk activate 6.0.8
       - run: source emsdk/emsdk_env.sh && bash scripts/build.sh
       - run: source emsdk/emsdk_env.sh && node scripts/smoke.mjs
+      - run: rm dist/clang.wasm dist/lld.wasm dist/sysroot-base.tar dist/sysroot-threads.tar
       - uses: actions/upload-artifact@v4
         with:
           name: compilefoundry-toolchain

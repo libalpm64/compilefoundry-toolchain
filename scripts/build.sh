@@ -90,7 +90,8 @@ cmake -E remove_directory "$BUILD/sysroot/lib/clang/23/lib/wasm32-unknown-wasip1
 
 (cd "$BUILD/sysroot" && tar --format=ustar -cf "$DIST/sysroot-base.tar" *)
 (cd "$THREADS_SYSROOT" && tar --format=ustar -cf "$DIST/sysroot-threads.tar" *)
+gzip -9 -k "$DIST/clang.wasm" "$DIST/lld.wasm" "$DIST/sysroot-base.tar" "$DIST/sysroot-threads.tar"
 
 cd "$DIST"
-sha256sum clang.js clang.wasm lld.js lld.wasm sysroot-base.tar sysroot-threads.tar > SHA256SUMS
+sha256sum clang.js clang.wasm.gz lld.js lld.wasm.gz sysroot-base.tar.gz sysroot-threads.tar.gz > SHA256SUMS
 node "$ROOT/scripts/manifest.mjs" > manifest.json
