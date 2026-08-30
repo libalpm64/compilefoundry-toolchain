@@ -7,6 +7,8 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const dist = join(root, "dist")
 const baseTar = readFileSync(join(dist, "sysroot-base.tar"))
 const threadsTar = readFileSync(join(dist, "sysroot-threads.tar"))
+const clangWasm = readFileSync(join(dist, "clang.wasm"))
+const lldWasm = readFileSync(join(dist, "lld.wasm"))
 const Clang = (await import(pathToFileURL(join(dist, "clang.js")))).default
 const LLD = (await import(pathToFileURL(join(dist, "lld.js")))).default
 
@@ -42,7 +44,7 @@ function install(module, archives) {
 
 async function invocation(fileName, source, flags) {
   let stderr = ""
-  const clang = await Clang({ thisProgram: "clang++", printErr: value => { stderr += `${value}\n` } })
+  const clang = await Clang({ thisProgram: "clang++", wasmBinary: clangWasm, printErr: value => { stderr += `${value}\n` } })
   clang.FS.writeFile(fileName, source)
   for (const target of ["wasm32-wasip1", "wasm32-wasip1-threads"]) {
     clang.FS.mkdirTree(`/lib/${target}`)
@@ -67,8 +69,8 @@ async function compile(fileName, source, flags, archives) {
   let stderr = ""
   const [plan, clang, lld] = await Promise.all([
     invocation(fileName, source, flags),
-    Clang({ thisProgram: "clang++", printErr: value => { stderr += `${value}\n` } }),
-    LLD({ thisProgram: "wasm-ld", printErr: value => { stderr += `${value}\n` } })
+    Clang({ thisProgram: "clang++", wasmBinary: clangWasm, printErr: value => { stderr += `${value}\n` } }),
+    LLD({ thisProgram: "wasm-ld", wasmBinary: lldWasm, printErr: value => { stderr += `${value}\n` } })
   ])
   install(clang, archives)
   clang.FS.writeFile(fileName, source)
