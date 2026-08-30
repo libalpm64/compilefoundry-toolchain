@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing tag to build and publish
+        description: Tag to build and publish (created if not exists)
         required: true
         type: string
 
@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
       - run: sudo apt-get update
       - run: sudo apt-get install -y build-essential cmake curl git ninja-build python3
       - run: git clone --depth 1 --branch 6.0.8 https://github.com/emscripten-core/emsdk.git emsdk
@@ -36,20 +36,13 @@ jobs:
           name: compilefoundry-toolchain
           path: dist/
           if-no-files-found: error
-      - if: inputs.release_tag != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release create "$RELEASE_TAG" dist/* --generate-notes --verify-tag
 
   go-yaegi:
     name: Go 1.26 Yaegi WASI (unified)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag }}
+      - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
@@ -98,9 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag }}
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -131,3 +122,29 @@ jobs:
           name: rust-wasi
           path: dist/rust*
           if-no-files-found: warn
+
+  release:
+    if: inputs.release_tag != ''
+    needs: [build, go-yaegi, rust-wasi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-all
+      - run: ls -R dist-all; echo "---"; find dist-all -type f | head -n 20
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -e
+          git fetch --tags || true
+          if ! git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            git tag "$RELEASE_TAG" || true
+            git push origin "$RELEASE_TAG" || true
+          fi
+          gh release create "$RELEASE_TAG" dist-all/**/* --generate-notes --fail-on-no-artifacts || gh release upload "$RELEASE_TAG" dist-all/**/* --clobber
