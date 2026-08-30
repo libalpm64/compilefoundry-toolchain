@@ -85,12 +85,15 @@ cmake -E make_directory "$BUILD/sysroot/include/c++/v1/bits"
 cp "$ROOT/compat/include/generator" "$BUILD/sysroot/include/c++/v1/generator"
 cp "$ROOT/compat/include/barrier" "$BUILD/sysroot/include/c++/v1/barrier"
 cp "$ROOT/compat/include/latch" "$BUILD/sysroot/include/c++/v1/latch"
+cp "$ROOT/compat/include/semaphore" "$BUILD/sysroot/include/c++/v1/semaphore"
 cp "$ROOT/compat/include/bits/stdc++.h" "$BUILD/sysroot/include/c++/v1/bits/stdc++.h"
 for MODE in eh noeh; do
     cp "$ROOT/compat/include/barrier" "$BUILD/sysroot/include/wasm32-wasip1/$MODE/c++/v1/barrier"
     cp "$ROOT/compat/include/latch" "$BUILD/sysroot/include/wasm32-wasip1/$MODE/c++/v1/latch"
+    cp "$ROOT/compat/include/semaphore" "$BUILD/sysroot/include/wasm32-wasip1/$MODE/c++/v1/semaphore"
     cp "$ROOT/compat/include/barrier" "$BUILD/sysroot/include/wasm32-wasip1-threads/$MODE/c++/v1/barrier"
     cp "$ROOT/compat/include/latch" "$BUILD/sysroot/include/wasm32-wasip1-threads/$MODE/c++/v1/latch"
+    cp "$ROOT/compat/include/semaphore" "$BUILD/sysroot/include/wasm32-wasip1-threads/$MODE/c++/v1/semaphore"
 done
 
 cmake -E make_directory "$THREADS_SYSROOT/include" "$THREADS_SYSROOT/lib" "$THREADS_SYSROOT/lib/clang/23/lib"
@@ -98,6 +101,7 @@ cmake -E copy_directory "$BUILD/sysroot/include/wasm32-wasip1-threads" "$THREADS
 cmake -E make_directory "$THREADS_SYSROOT/include/c++/v1"
 cp "$ROOT/compat/include/barrier" "$THREADS_SYSROOT/include/c++/v1/barrier"
 cp "$ROOT/compat/include/latch" "$THREADS_SYSROOT/include/c++/v1/latch"
+cp "$ROOT/compat/include/semaphore" "$THREADS_SYSROOT/include/c++/v1/semaphore"
 cmake -E copy_directory "$BUILD/sysroot/lib/wasm32-wasip1-threads" "$THREADS_SYSROOT/lib/wasm32-wasip1-threads"
 cmake -E copy_directory "$BUILD/sysroot/lib/clang/23/lib/wasm32-unknown-wasip1-threads" "$THREADS_SYSROOT/lib/clang/23/lib/wasm32-unknown-wasip1-threads"
 

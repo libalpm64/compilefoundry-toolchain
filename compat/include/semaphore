@@ -1,0 +1,67 @@
+#pragma once
+
+#include <chrono>
+#include <condition_variable>
+#include <cstddef>
+#include <limits>
+#include <mutex>
+
+namespace std {
+
+template<ptrdiff_t LeastMaxValue = numeric_limits<ptrdiff_t>::max()>
+class counting_semaphore {
+public:
+    static constexpr ptrdiff_t max() noexcept {
+        return LeastMaxValue > 0 ? LeastMaxValue : numeric_limits<ptrdiff_t>::max();
+    }
+
+    explicit counting_semaphore(ptrdiff_t desired) : count_(desired) {}
+
+    counting_semaphore(const counting_semaphore&) = delete;
+    counting_semaphore& operator=(const counting_semaphore&) = delete;
+
+    void release(ptrdiff_t update = 1) {
+        unique_lock lock(mutex_);
+        count_ += update;
+        lock.unlock();
+        condition_.notify_all();
+    }
+
+    void acquire() {
+        unique_lock lock(mutex_);
+        condition_.wait(lock, [this] { return count_ > 0; });
+        --count_;
+    }
+
+    [[nodiscard]] bool try_acquire() {
+        lock_guard lock(mutex_);
+        if (count_ == 0) return false;
+        --count_;
+        return true;
+    }
+
+    template<class Rep, class Period>
+    [[nodiscard]] bool try_acquire_for(const chrono::duration<Rep, Period>& duration) {
+        unique_lock lock(mutex_);
+        if (!condition_.wait_for(lock, duration, [this] { return count_ > 0; })) return false;
+        --count_;
+        return true;
+    }
+
+    template<class Clock, class Duration>
+    [[nodiscard]] bool try_acquire_until(const chrono::time_point<Clock, Duration>& deadline) {
+        unique_lock lock(mutex_);
+        if (!condition_.wait_until(lock, deadline, [this] { return count_ > 0; })) return false;
+        --count_;
+        return true;
+    }
+
+private:
+    mutable mutex mutex_;
+    mutable condition_variable condition_;
+    ptrdiff_t count_;
+};
+
+using binary_semaphore = counting_semaphore<1>;
+
+}
