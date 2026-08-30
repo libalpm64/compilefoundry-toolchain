@@ -25,4 +25,4 @@ Unified browser-hosted toolchain for CompileFoundry — Clang, LLD, WASI sysroot
 
 ## Build
 
-Run the Build and Release workflow manually with an existing release tag. Pushes do not start builds.
+Run the Build and Release workflow manually and enter the desired release tag. After all builds succeed, the workflow creates the tag if needed and publishes or updates the matching GitHub release. Pushes do not start builds.

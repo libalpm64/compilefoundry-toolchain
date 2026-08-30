@@ -141,10 +141,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          set -e
-          git fetch --tags || true
-          if ! git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
-            git tag "$RELEASE_TAG" || true
-            git push origin "$RELEASE_TAG" || true
+          set -euo pipefail
+
+          git check-ref-format "refs/tags/$RELEASE_TAG"
+          git fetch --force --tags
+          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            git tag "$RELEASE_TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$RELEASE_TAG"
           fi
-          gh release create "$RELEASE_TAG" dist-all/**/* --generate-notes --fail-on-no-artifacts || gh release upload "$RELEASE_TAG" dist-all/**/* --clobber
+
+          mapfile -d '' assets < <(find dist-all -type f -print0)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No release assets were downloaded" >&2
+            exit 1
+          fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --generate-notes --verify-tag
+          fi
