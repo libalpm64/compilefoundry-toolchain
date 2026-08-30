@@ -21,4 +21,4 @@ Browser-hosted Clang, LLD, and WASI sysroots for CompileFoundry.
 
 ## Build
 
-Run the Build and Release workflow manually or push a version tag.
+Run the Build and Release workflow manually with an existing release tag. Pushes do not start builds.
