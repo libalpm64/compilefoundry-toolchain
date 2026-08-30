@@ -1,0 +1,49 @@
+#pragma once
+
+#include <condition_variable>
+#include <cstddef>
+#include <limits>
+#include <mutex>
+
+namespace std {
+
+class latch {
+public:
+    explicit latch(ptrdiff_t expected) : count_(expected) {}
+
+    latch(const latch&) = delete;
+    latch& operator=(const latch&) = delete;
+
+    static constexpr ptrdiff_t max() noexcept { return numeric_limits<ptrdiff_t>::max(); }
+
+    void count_down(ptrdiff_t update = 1) {
+        unique_lock lock(mutex_);
+        count_ -= update;
+        if (count_ == 0) {
+            lock.unlock();
+            condition_.notify_all();
+        }
+    }
+
+    [[nodiscard]] bool try_wait() const noexcept {
+        lock_guard lock(mutex_);
+        return count_ == 0;
+    }
+
+    void wait() const {
+        unique_lock lock(mutex_);
+        condition_.wait(lock, [this] { return count_ == 0; });
+    }
+
+    void count_down_and_wait() {
+        count_down();
+        wait();
+    }
+
+private:
+    mutable mutex mutex_;
+    mutable condition_variable condition_;
+    ptrdiff_t count_;
+};
+
+}

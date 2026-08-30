@@ -1,0 +1,86 @@
+#pragma once
+
+#include <condition_variable>
+#include <cstddef>
+#include <limits>
+#include <mutex>
+#include <utility>
+
+namespace std {
+
+struct __compilefoundry_barrier_completion {
+    void operator()() noexcept {}
+};
+
+template<class CompletionFunction = __compilefoundry_barrier_completion>
+class barrier {
+public:
+    using arrival_token = size_t;
+
+    explicit barrier(ptrdiff_t expected, CompletionFunction completion = CompletionFunction())
+        : expected_(expected), completion_(move(completion)) {}
+
+    barrier(const barrier&) = delete;
+    barrier& operator=(const barrier&) = delete;
+
+    static constexpr ptrdiff_t max() noexcept { return numeric_limits<ptrdiff_t>::max(); }
+
+    [[nodiscard]] arrival_token arrive(ptrdiff_t update = 1) {
+        unique_lock lock(mutex_);
+        const size_t token = generation_;
+        arrived_ += update;
+        if (arrived_ == expected_) {
+            arrived_ = 0;
+            const auto drops = dropped_;
+            dropped_ = 0;
+            expected_ -= drops;
+            completion_();
+            ++generation_;
+            lock.unlock();
+            condition_.notify_all();
+        }
+        return token;
+    }
+
+    void wait(arrival_token&& token) const {
+        unique_lock lock(mutex_);
+        condition_.wait(lock, [this, token] { return generation_ != token; });
+    }
+
+    void arrive_and_wait() {
+        auto token = arrive();
+        wait(move(token));
+    }
+
+    void arrive_and_drop() {
+        unique_lock lock(mutex_);
+        ++arrived_;
+        ++dropped_;
+        if (arrived_ == expected_) {
+            arrived_ = 0;
+            const auto drops = dropped_;
+            dropped_ = 0;
+            expected_ -= drops;
+            completion_();
+            ++generation_;
+            lock.unlock();
+            condition_.notify_all();
+        }
+    }
+
+private:
+    mutable mutex mutex_;
+    mutable condition_variable condition_;
+    ptrdiff_t expected_;
+    ptrdiff_t arrived_ = 0;
+    ptrdiff_t dropped_ = 0;
+    size_t generation_ = 0;
+    CompletionFunction completion_;
+};
+
+template<class CompletionFunction>
+barrier(ptrdiff_t, CompletionFunction) -> barrier<CompletionFunction>;
+
+barrier(ptrdiff_t) -> barrier<>;
+
+}
