@@ -39,6 +39,14 @@ emcmake cmake -S "$BUILD/llvm-project/llvm" -B "$BUILD/llvm" \
 
 ninja -C "$BUILD/llvm" lld clang
 
+mapfile -t CLANG_RESOURCE_DIRS < <(find "$BUILD/llvm/lib/clang" -mindepth 1 -maxdepth 1 -type d -print)
+if [ "${#CLANG_RESOURCE_DIRS[@]}" -ne 1 ]; then
+    echo "expected exactly one Clang resource directory, found ${#CLANG_RESOURCE_DIRS[@]}" >&2
+    exit 1
+fi
+CLANG_RESOURCE_DIR="${CLANG_RESOURCE_DIRS[0]}"
+CLANG_RESOURCE_VERSION="${CLANG_RESOURCE_DIR##*/}"
+
 CLANG_JS="$(find "$BUILD/llvm/bin" -maxdepth 1 -type f -name 'clang.js-*' -print -quit)"
 test -n "$CLANG_JS"
 cp "$CLANG_JS" "$DIST/clang.js"
@@ -73,12 +81,12 @@ find "$BUILD/sysroot/lib" -type d -name llvm-lto -prune -exec rm -rf '{}' '+'
 find "$BUILD/sysroot/lib/wasm32-wasip1" "$BUILD/sysroot/lib/wasm32-wasip1-threads" -type d -name noeh -prune -exec rm -rf '{}' '+'
 find "$BUILD/sysroot/lib" -type f -name '*.so' -delete
 
-cmake -E make_directory "$BUILD/sysroot/lib/clang/23/include"
-cmake -E copy_directory "$BUILD/llvm/lib/clang/23/include" "$BUILD/sysroot/lib/clang/23/include"
+cmake -E make_directory "$BUILD/sysroot/lib/clang/$CLANG_RESOURCE_VERSION/include"
+cmake -E copy_directory "$CLANG_RESOURCE_DIR/include" "$BUILD/sysroot/lib/clang/$CLANG_RESOURCE_VERSION/include"
 
 for TARGET in wasm32-unknown-wasip1 wasm32-unknown-wasip1-threads; do
-    cmake -E make_directory "$BUILD/sysroot/lib/clang/23/lib/$TARGET"
-    cp "$BUILD/builtins/$TARGET/libclang_rt.builtins.a" "$BUILD/sysroot/lib/clang/23/lib/$TARGET/libclang_rt.builtins.a"
+    cmake -E make_directory "$BUILD/sysroot/lib/clang/$CLANG_RESOURCE_VERSION/lib/$TARGET"
+    cp "$BUILD/builtins/$TARGET/libclang_rt.builtins.a" "$BUILD/sysroot/lib/clang/$CLANG_RESOURCE_VERSION/lib/$TARGET/libclang_rt.builtins.a"
 done
 
 cmake -E make_directory "$BUILD/sysroot/include/c++/v1/bits"
@@ -96,18 +104,18 @@ for MODE in eh noeh; do
     cp "$ROOT/compat/include/semaphore" "$BUILD/sysroot/include/wasm32-wasip1-threads/$MODE/c++/v1/semaphore"
 done
 
-cmake -E make_directory "$THREADS_SYSROOT/include" "$THREADS_SYSROOT/lib" "$THREADS_SYSROOT/lib/clang/23/lib"
+cmake -E make_directory "$THREADS_SYSROOT/include" "$THREADS_SYSROOT/lib" "$THREADS_SYSROOT/lib/clang/$CLANG_RESOURCE_VERSION/lib"
 cmake -E copy_directory "$BUILD/sysroot/include/wasm32-wasip1-threads" "$THREADS_SYSROOT/include/wasm32-wasip1-threads"
 cmake -E make_directory "$THREADS_SYSROOT/include/c++/v1"
 cp "$ROOT/compat/include/barrier" "$THREADS_SYSROOT/include/c++/v1/barrier"
 cp "$ROOT/compat/include/latch" "$THREADS_SYSROOT/include/c++/v1/latch"
 cp "$ROOT/compat/include/semaphore" "$THREADS_SYSROOT/include/c++/v1/semaphore"
 cmake -E copy_directory "$BUILD/sysroot/lib/wasm32-wasip1-threads" "$THREADS_SYSROOT/lib/wasm32-wasip1-threads"
-cmake -E copy_directory "$BUILD/sysroot/lib/clang/23/lib/wasm32-unknown-wasip1-threads" "$THREADS_SYSROOT/lib/clang/23/lib/wasm32-unknown-wasip1-threads"
+cmake -E copy_directory "$BUILD/sysroot/lib/clang/$CLANG_RESOURCE_VERSION/lib/wasm32-unknown-wasip1-threads" "$THREADS_SYSROOT/lib/clang/$CLANG_RESOURCE_VERSION/lib/wasm32-unknown-wasip1-threads"
 
 cmake -E remove_directory "$BUILD/sysroot/include/wasm32-wasip1-threads"
 cmake -E remove_directory "$BUILD/sysroot/lib/wasm32-wasip1-threads"
-cmake -E remove_directory "$BUILD/sysroot/lib/clang/23/lib/wasm32-unknown-wasip1-threads"
+cmake -E remove_directory "$BUILD/sysroot/lib/clang/$CLANG_RESOURCE_VERSION/lib/wasm32-unknown-wasip1-threads"
 
 (cd "$BUILD/sysroot" && tar --format=ustar -cf "$DIST/sysroot-base.tar" *)
 (cd "$THREADS_SYSROOT" && tar --format=ustar -cf "$DIST/sysroot-threads.tar" *)
