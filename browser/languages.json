@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "executionBoundary": "browser-only",
+  "limits": {
+    "sourceBytes": 65536,
+    "stdinBytes": 65536,
+    "outputBytes": 65536,
+    "runMilliseconds": 5000
+  },
+  "languages": [
+    {
+      "id": "javascript",
+      "label": "JavaScript",
+      "version": "ECMAScript 2026",
+      "engine": "browser-native",
+      "support": "full"
+    },
+    {
+      "id": "typescript",
+      "label": "TypeScript",
+      "version": "6.0.2",
+      "engine": "typescript@6.0.2",
+      "support": "transpile-only",
+      "note": "TypeScript 7.0.2 is current, but its official programmatic API is deferred to 7.1."
+    }
+  ]
+}

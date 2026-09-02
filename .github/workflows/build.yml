@@ -38,14 +38,14 @@ jobs:
           if-no-files-found: error
 
   go-yaegi:
-    name: Go 1.26 Yaegi WASI (unified)
+    name: Yaegi WASI built with Go 1.27
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: "1.27"
           cache: true
       - name: Build Yaegi WASI (GOOS=wasip1)
         run: |
@@ -86,8 +86,31 @@ jobs:
           path: dist/yaegi.wasm*
           if-no-files-found: error
 
+  browser-runtimes:
+    name: Browser language runtimes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Bundle pinned browser assets
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp browser/languages.json dist/
+          curl --fail --location --retry 3 \
+            --output dist/typescript.js \
+            https://cdn.jsdelivr.net/npm/typescript@6.0.2/lib/typescript.js
+          gzip -9 -k dist/typescript.js
+          test -s dist/typescript.js
+          (cd dist && sha256sum * > browser-SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-runtimes
+          path: dist/
+          if-no-files-found: error
+
   rust-wasi:
-    name: Rust 1.88 WASI 0.3 (unified)
+    name: Rust stable WASI artifacts (not a browser compiler)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -125,7 +148,7 @@ jobs:
 
   release:
     if: inputs.release_tag != ''
-    needs: [build, go-yaegi, rust-wasi]
+    needs: [build, go-yaegi, rust-wasi, browser-runtimes]
     runs-on: ubuntu-latest
     permissions:
       contents: write
